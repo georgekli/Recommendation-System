@@ -6,45 +6,43 @@ import xlsxwriter
 from pathlib import Path
     
 random.seed(21)
-# Functions for storing and retrieving Matrices used in the code below #################################################
-# Write into preferenceList.xlsx the preference list of the users for each item
-def store_r(r):
-    prefListWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/preferenceList.xlsx")
-    prefListWs = prefListWb.add_worksheet()
 
-    for j in range(0, r.shape[0]):
-        prefListWs.write_row(j + 1, 0, r[j])
-    prefListWb.close()
+################## Functions for storing and retrieving Matrices used in the code below ################################
 
-# Write into itemsCost.xlsx the itemsCost Matrix
-def store_items_cost(itemsCost):
-    itemsCostWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/itemsCost.xlsx")
-    itemsCostWs = itemsCostWb.add_worksheet()
-
-    for j in range(0, itemsCost.shape[0]):
-        itemsCostWs.write_number(j + 1, 0, itemsCost[j])
-    itemsCostWb.close()
-
-
-# Write into usersBudget.xlsx the usersBudget matrix
-def store_users_budget(usersBudget):
-    usersBudgetWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/usersBudget.xlsx")
-    usersBudgetWs = usersBudgetWb.add_worksheet()
-
-    for j in range(0, usersBudget.shape[0]):
-        usersBudgetWs.write_number(j + 1, 0, usersBudget[j])
-    usersBudgetWb.close()
-
-### Import some excel matrix
-def import_excel_matrix(name):
-    file_path = f"{Path(__file__).parent}/Datasets/{name}.xlsx"
+""" Import an excel matrix with name equal to name
+:param filename: The file of the matrix
+:returns: Imported matrix
+:rtype: np.array
+"""
+def import_excel_matrix(filename):
+    file_path = f"{Path(__file__).parent}/Datasets/{filename}"
     WS = pd.read_excel(file_path)
     return np.array(WS)
 
+
+""" Store a matrix in an excel sheet
+:param matrix: The matrix to be stored
+:param filename: Where to store the matrix
+"""
+def store_excel_matrix(matrix, filename):
+    matrixWb = xlsxwriter.Workbook(f"{Path(__file__).parent}/Datasets/{filename}")
+    matrixWs = matrixWb.add_worksheet()
+    try:
+        for j in range(0, matrix.shape[0]):
+            matrixWs.write_row(j + 1, 0, matrix[j])
+    except:
+        for j in range(0, matrix.shape[0]):
+            matrixWs.write_number(j + 1, 0, matrix[j])
+    matrixWb.close()
+
 # Helping Functions used for showing and generating data ###############################################################
-# Create a random group of groupSize users and return their index in prefList. usersSize is the max index possible
+""" Create a random group of users
+:param groupSize: The desired size of the group
+:param usersSize: The maximum user index
+:returns: random list of user 
+""" 
 def create_random_group(groupSize, usersSize):
-    return random.sample(range(0, usersSize + 1), groupSize)
+    return random.sample(range(0, usersSize), groupSize)
 
 
 # Calculate and show the average score of an algorithm that suggests an item(1) by calculating the average rating of the

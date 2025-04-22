@@ -284,9 +284,9 @@ if __name__ == '__main__':
     storeMatrices = not impMatrices
     spendTimeWaiting = SPEND_TIME_WAITING
     if impMatrices:
-        r = import_excel_matrix("preferenceList")
-        itemsCost = import_excel_matrix("itemsCost")
-        usersBudget = import_excel_matrix("usersBudget")
+        r = import_excel_matrix("preferenceList.xlsx")
+        itemsCost = import_excel_matrix("itemsCost.xlsx")
+        usersBudget = import_excel_matrix("usersBudget.xlsx")
     else:
         # Give the location of the file of the items
         itemsLoc = Path(__file__).parent / "Datasets/items.xls"
@@ -340,9 +340,9 @@ if __name__ == '__main__':
                     usersBudget[u - 1] = usersSheet.cell_value(u, 10)
         # Helpful Storing
         if storeMatrices:
-            store_r(r)
-            store_items_cost(itemsCost)
-            store_users_budget(usersBudget)
+            store_excel_matrix(r, "preferenceList.xlsx")
+            store_excel_matrix(itemsCost, "itemsCost.xlsx")
+            store_excel_matrix(usersBudget, "usersBudget.xlsx")
     # Initialize the sorted Preference list
     prefList = r
     sortedPref = np.zeros((r.shape[0], r.shape[1]), dtype=tuple)
