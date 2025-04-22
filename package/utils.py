@@ -44,7 +44,6 @@ def store_excel_matrix(matrix, filename):
 def create_random_group(groupSize, usersSize):
     return random.sample(range(0, usersSize), groupSize)
 
-
 # Calculate and show the average score of an algorithm that suggests an item(1) by calculating the average rating of the
 # item by users in each group (used for 100 groups)
 def calculate_avg_algo_score(preferedItems, prefList, groups, groupSize):
