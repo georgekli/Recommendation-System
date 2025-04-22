@@ -1,12 +1,14 @@
 import random
-import threading
-from multiprocessing import Process, Array
-from pathlib import Path
-import xlrd
-import xlsxwriter
 import pandas
 import numpy as np
+import threading
+import xlsxwriter
+import xlrd
+import corankco as crc
+
+from pathlib import Path
 from numpy.linalg import inv
+from multiprocessing import Process, Array
 
 # Control Sequence Variables############################################################################################
 # Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
@@ -14,7 +16,6 @@ SPEND_TIME_WAITING = [True, False, False, False, False, False]
 EPSILON = 0.0001
 IMPORT_MATRICES = False
 KENDALL_TAU_GROUP_SIZE = 10
-
 
 # Functions for storing and retrieving Matrices used in the code below #################################################
 
@@ -51,7 +52,6 @@ def store_users_budget(usersBudget):
 # Import the preference list matrix
 def import_r():
     WS = pandas.read_excel(Path(__file__).parent / "Datasets/preferenceList.xlsx")
-    # WS = pandas.read_excel('D:\\TUC\\THL_311\\pythonProject\\Datasets\\smallPreferencedList.xlsx')
     r = np.array(WS)
     return r
 
@@ -267,7 +267,7 @@ def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, 
                 if tmp not in simUsers:
                     compareUser = tmp
                     break
-        counter = 0;
+        counter = 0
         compareUserPreference = r[compareUser]
         for i in range(0, r.shape[1] - 1):
             for j in range(i + 1, r.shape[1]):
@@ -384,10 +384,8 @@ if __name__ == '__main__':
         usersBudget = import_users_budget()
     else:
         # Give the location of the file of the items
-        #itemsLoc = 'D:\\TUC\\THL_311\\pythonProject\\Datasets\\items.xls'
         itemsLoc = Path(__file__).parent / "Datasets/items.xls"
         # Give the location of the file of the users
-        # usersLoc = 'D:\\TUC\\THL_311\\pythonProject\\Datasets\\users.xls'
         usersLoc = Path(__file__).parent / "Datasets/users.xls"
 
         # To open Workbook for the users
