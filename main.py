@@ -3,85 +3,22 @@ import numpy as np
 from numpy.linalg import inv
 import threading
 from multiprocessing import Process, Array
+import time
 
 import xlrd
 import corankco as crc
 
-from utils import *
+from definitions import *
+from package.utils import *
+from package.voting_algorithms import *
 
 # Control Sequence Variables############################################################################################
 # Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
 EPSILON = 0.0001
 IMPORT_MATRICES = False
-KENDALL_TAU_GROUP_SIZE = 10
-SPEND_TIME_WAITING = [False, True, False, False, False, False]
+SPEND_TIME_WAITING = [True, False, False, False, False, False]
     
 random.seed(21)
-# Borda Count Algorithm for 100 groups in groupsIndexes returning 100 recommended items
-def borda_count(groupsIndexes, prefList):
-    preferedItems = [0] * 100
-    for i in range(0, 100):
-        groupIndexes = groupsIndexes[i]
-        group = [[0] * prefList.shape[1]] * len(groupIndexes)
-        # Make groups from matrix
-        for j in range(0, len(groupIndexes)):
-            group[j] = prefList[groupIndexes[j]]
-        # Initialize counters
-        itemsRating = [0] * prefList.shape[1]
-        # Count for every user prefered sequence
-        for users in range(0, len(groupIndexes)):
-            user = group[users]
-            for items in range(0, prefList.shape[1]):
-                item = user[items][1]
-                # Borda count increment
-                itemsRating[item] = itemsRating[item] + (prefList.shape[1] - items)
-        preferedItems[i] = np.flip(np.argsort(itemsRating))[0]
-    return preferedItems
-
-
-# Copeland Method Algorithm for a group returning a recommended item
-def copeland_method(groupIndexes, prefList):
-    # Create the copeland matrix
-    itemWins = [0]*prefList.shape[1]
-    itemA = 0
-    itemB = 1
-    while itemA < (prefList.shape[1] - 1) and itemB < (prefList.shape[1]):
-        roundWins = [0] * 2
-        for i in range(0, len(groupIndexes)):
-            if prefList[groupIndexes[i]][itemA] > prefList[groupIndexes[i]][itemB]:
-                roundWins[0] += 1
-            elif prefList[groupIndexes[i]][itemA] == prefList[groupIndexes[i]][itemB]:
-                pass
-            else:
-                roundWins[1] += 1
-
-        if roundWins[0] > roundWins[1]:
-            itemWins[itemA] += 1
-        elif roundWins[0] < roundWins[1]:
-            itemWins[itemB] += 1
-        else:
-            itemWins[itemA] += 0.5
-            itemWins[itemB] += 0.5
-        itemB += 1
-        if itemB == prefList.shape[1]-1:
-            itemA = itemA + 1
-            itemB = itemA + 1
-
-    return itemWins.index(max(itemWins))
-
-
-# Function calling copeland_method() for 100 groups of groupSize and showing the results
-def group_set_copeland(groupSize):
-    # Initialize the winners array and the groups
-    groups = [0] * 100
-    winnersArray = [0] * 100
-    # For 100 groups calculate with the copeland method the winner items
-    for i in range(0, 100):
-        groups[i] = create_random_group(groupSize, r.shape[0])
-        winner = copeland_method(groups[i], r)
-        winnersArray[i] = winner
-    calculate_avg_algo_score(winnersArray, r, groups, groupSize)
-
 
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for different group
 # sizes (= userNum). Specifically for group sizes = 5, 10, 15, 20
@@ -95,7 +32,6 @@ class MyBigThread (threading.Thread):
         print("Starting ", self.threadID)
         group_set_copeland(self.userNum)
         print("Exiting ", self.threadID)
-
 
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for
 # group size = KENDALL_TAU_GROUP_SIZE
@@ -113,48 +49,6 @@ class MyBigThread2 (threading.Thread):
             winnersArray[i] = winner
         calculate_avg_algo_score(winnersArray, r, groups, self.userNum)
         print("Exiting ", self.threadID)
-
-
-# Reweighed Approval Voting algorithm for a groups that returns k items
-def rav(groupIndexes, prefList, k, threshold):
-    # Create approval list for every user
-    A = [[] for i in range(len(groupIndexes))]
-    for i in range(0, len(groupIndexes)):
-        # Get for the i user. Its preference list
-        userItems = prefList[groupIndexes[i]]
-        # For all the items j in its preference list
-        for j in range(0, len(userItems)):
-            # Check if the rating is greater than the threshold
-            if userItems[j] > threshold:  # If yes insert in the approval list
-                nest = A[i]
-                nest.append(j)
-    # print(A)
-    S = []
-    # Recommend k Items
-    for kIters in range(0, k):
-        # Item votes
-        weightedItemVotes = [0]*prefList.shape[1]
-        # For all users in the group
-        for i in range(0, len(groupIndexes)):
-            # Get for the i user. Its preference list
-            userApprovedItems = A[i]
-            electedGroup = 0
-            # Calculate mumber of items of A[i] in S
-            for item in userApprovedItems:
-                if item in S:
-                    electedGroup += 1
-            # For all the items j in its prefence list
-            for j in range(0, len(userApprovedItems)):
-                if userApprovedItems[j] not in S:
-                    # weighted vote
-                    weightedItemVotes[userApprovedItems[j]] += (1/(electedGroup+1))
-        # Find winner
-        electedCanditate = weightedItemVotes.index(max(weightedItemVotes))
-        S.append(electedCanditate)
-        # print(weightedItemVotes)
-        # print(electedCanditate)
-    return S
-
 
 # Function that spawn a process for each group to be created
 def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, pid):
@@ -195,110 +89,22 @@ def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, 
         simGroup[k] = simUsers[k]
         divGroup[k] = divUsers[k]
 
-
-# Function that returns the items that the users of group can acquire with their budget
-def items_feasible(group, items, users):
-    # Find budget for group
-    budget = 0
-    for userId in group:
-        budget = budget + users[userId]
-    # search every item for feasibility for lowest budget
-    feasibleItemsIndexes = items < budget
-    feasibleItems = np.where(feasibleItemsIndexes)[0]
-    return feasibleItems
-
-
-# Function that calculates and shows the payment vector (showing only if boolean var show is True) for a group that
-# gets an item (=selectedItem)
-def calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, show):
-    # Cost Distribution Mechanism
-    i = 0
-    # Initialize the user satisfaction
-    userSatisfaction = [0]*len(group)
-    # For every user in the group
-    for userId in group:
-        # User satisfaction comes from relevance metric
-        userSatisfaction[i] = prefList[userId, selectedItem]
-        i += 1
-    # Calculate the overall similarity of the user satisfaction
-    overallSimilarity = sum(userSatisfaction)
-    # Initialize the user payments
-    userpayments = [0]*len(group)
-    richUsers = []
-    sharedCost = 0
-    i = 0
-    # Calculate payment for each user
-    for userId in group:
-        # Calculate how much each user pays based on its preference, satisfaction
-        userpayments[i] = (userSatisfaction[i]/overallSimilarity)*itemsCost[selectedItem]
-        richUsers.append([userId, i])
-        if userpayments[i] > usersBudget[userId]:
-            # Accumulate debt for the rich
-            sharedCost += userpayments[i] - usersBudget[userId]
-            userpayments[i] = usersBudget[userId]
-            # Exclude poor user for future distribution
-            richUsers.pop()
-        i += 1
-    # Well now the rich should pay for the poor recursively (ancient Athens theatre)
-    while sharedCost != 0:
-        newSharedCost = 0
-        newRichUsers = []
-        richUsersIdx = [index[1] for index in richUsers]
-        overallSimilarity = 0
-        for idTmp in richUsersIdx:
-            overallSimilarity += userSatisfaction[idTmp]
-        for user in richUsers:
-            i = user[1]
-            userId = user[0]
-            userpayments[i] += (userSatisfaction[i] / overallSimilarity) * sharedCost  # Simple distribution metric
-            newRichUsers.append([userId, i])
-            if userpayments[i] > usersBudget[userId]:
-                newSharedCost += userpayments[i] - usersBudget[userId]  # Accumulate debt for the rich
-                userpayments[i] = usersBudget[userId]
-                newRichUsers.pop()  # Exclude poor user for future distribution
-        sharedCost = newSharedCost
-        richUsers = newRichUsers
-    if show:
-        for i in range(0, groupSize):
-            print("User:", group[i], " pays:", userpayments[i], "for similarity", userSatisfaction[i], " with budget",
-                  usersBudget[group[i]])
-        print("Cost of movie:", itemsCost[selectedItem])
-        if sum(userpayments)-itemsCost[selectedItem] > 1e-10:
-            print("Failed Distribution Test with", sum(userpayments)-itemsCost[selectedItem], "$ Difference")
-    return userpayments
-
-
-# Function that calculates the satisfaction of a user when itemId is purchased by the group
-def calculate_sat(prefList, userBudget, userId, itemId, payment):
-    a = 8
-    b = 2
-    fisrtPart = a**((-(max(prefList[userId]))-prefList[userId][itemId])/max(prefList[userId]))
-    secondPart = b**((userBudget-payment)/userBudget)
-    return fisrtPart*secondPart
-
-
 # Main code for running Tasks in the assignment ########################################################################
 if __name__ == '__main__':
-    # Control Sequence Variables
-    impMatrices = IMPORT_MATRICES
-    storeMatrices = not impMatrices
+    # Control Sequence Variables 
+    storeMatrices = not IMPORT_MATRICES
     spendTimeWaiting = SPEND_TIME_WAITING
-    if impMatrices:
-        r = import_excel_matrix("preferenceList.xlsx")
-        itemsCost = import_excel_matrix("itemsCost.xlsx")
-        usersBudget = import_excel_matrix("usersBudget.xlsx")
+    if IMPORT_MATRICES:
+        r = import_excel_matrix(f"{DATASET_DIR}/preferenceList.xlsx")
+        itemsCost = import_excel_matrix(f"{DATASET_DIR}/itemsCost.xlsx")
+        usersBudget = import_excel_matrix(f"{DATASET_DIR}/usersBudget.xlsx")
     else:
-        # Give the location of the file of the items
-        itemsLoc = Path(__file__).parent / "Datasets/items.xls"
-        # Give the location of the file of the users
-        usersLoc = Path(__file__).parent / "Datasets/users.xls"
-
-        # To open Workbook for the users
-        usersWb = xlrd.open_workbook(usersLoc)
+        # Open Workbook for the users
+        usersWb = xlrd.open_workbook(f"{DATASET_DIR}/items.xls")
         usersSheet = usersWb.sheet_by_index(0)
 
         # To open Workbook for the items
-        itemsWb = xlrd.open_workbook(itemsLoc)
+        itemsWb = xlrd.open_workbook(f"{DATASET_DIR}/users.xls")
         itemsSheet = itemsWb.sheet_by_index(0)
         # Define the dimensions of the features
         D = 8
@@ -338,12 +144,14 @@ if __name__ == '__main__':
                 r[u - 1, i - 1] = sc
                 if i == 1:
                     usersBudget[u - 1] = usersSheet.cell_value(u, 10)
-        # Helpful Storing
+        # Store matrices?
         if storeMatrices:
-            store_excel_matrix(r, "preferenceList.xlsx")
-            store_excel_matrix(itemsCost, "itemsCost.xlsx")
-            store_excel_matrix(usersBudget, "usersBudget.xlsx")
+            store_excel_matrix(r, f"{DATASET_DIR}/preferenceList.xlsx")
+            store_excel_matrix(itemsCost, f"{DATASET_DIR}/itemsCost.xlsx")
+            store_excel_matrix(usersBudget, f"{DATASET_DIR}/usersBudget.xlsx")
+    
     # Initialize the sorted Preference list
+    start1 = time.time()
     prefList = r
     sortedPref = np.zeros((r.shape[0], r.shape[1]), dtype=tuple)
     for i in range(0, r.shape[0]):
@@ -351,9 +159,13 @@ if __name__ == '__main__':
             sortedPref[i][j] = (prefList[i][j], j)
     # Sort the list
     sortedPref = np.flip(np.sort(sortedPref), axis=1)
+    end1 = time.time()
+    print(end1 - start1)
+    
+
     # Task 1############################################################################################################
     if spendTimeWaiting[0]:
-        print_top10(r)
+        print_top_k(r, k=5)
     # Task 2a###########################################################################################################
     if spendTimeWaiting[1]:
         groupSizes = [5, 10, 15, 20]
