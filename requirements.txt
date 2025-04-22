@@ -3,3 +3,4 @@ pandas
 xlrd
 xlsxwriter
 corankco
+unittest2

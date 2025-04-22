@@ -1,64 +1,22 @@
 import random
 import numpy as np
-
-
-import xlrd
-import corankco as crc
-from utils import *
-
 from numpy.linalg import inv
-
 import threading
 from multiprocessing import Process, Array
 
+import xlrd
+import corankco as crc
+
+from utils import *
+
 # Control Sequence Variables############################################################################################
 # Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
-SPEND_TIME_WAITING = [True, False, False, False, False, False]
 EPSILON = 0.0001
 IMPORT_MATRICES = False
 KENDALL_TAU_GROUP_SIZE = 10
-
-# Helping Functions used for showing and generating data ###############################################################
-# Create a random group of groupSize users and return their index in prefList. usersSize is the max index possible
-def create_random_group(groupSize, usersSize):
-    random.seed()
-    group = [-1] * groupSize
-    for i in range(0, groupSize):
-        userIndex = random.randint(0, usersSize - 1)
-        while (userIndex in group):
-            userIndex = random.randint(0, usersSize - 1)
-        group[i] = userIndex
-    return group
-
-
-# Calculate and show the average score of an algorithm that suggests an item(1) by calculating the average rating of the
-# item by users in each group (used for 100 groups)
-def calculate_avg_algo_score(preferedItems, prefList, groups, groupSize):
-    itemScore = [0] * 100
-    for k in range(0, 100):
-        for j in range(0, groupSize):
-            itemScore[k] += prefList[groups[k][j]][preferedItems[k]]
-        itemScore[k] = itemScore[k] / groupSize
-    avgItemScore = np.sum(itemScore) / 100
-    print(f"For group size = {groupSize} average score is {avgItemScore}")
-
-
-# Functions used for the Task's algorithms #############################################################################
-# Print top 10 items for the first 50 users
-def print_top10(r):
-    sortedItemsIndexes = np.zeros(r.shape[1])
-    top10Items = np.zeros((r.shape[0], 10))
-    top10Indexes = np.zeros((r.shape[0], 10))
-    print("Top 10 items for every user(descending)")
-    for users in range(0, 50):
-        # Take indexes of sorted items
-        sortedItemsIndexes = np.argsort(r[users])
-        top10Indexes[users] = np.take(sortedItemsIndexes, range(r.shape[1] - 10, r.shape[1]))
-        # Take top 10 indexes and make them items
-        top10Items[users] = np.take(r[users], np.take(sortedItemsIndexes, range(r.shape[1] - 10, r.shape[1])))
-        print("User: ", users, np.flip(top10Indexes[users]))
-
-
+SPEND_TIME_WAITING = [False, True, False, False, False, False]
+    
+random.seed(21)
 # Borda Count Algorithm for 100 groups in groupsIndexes returning 100 recommended items
 def borda_count(groupsIndexes, prefList):
     preferedItems = [0] * 100
@@ -126,7 +84,7 @@ def group_set_copeland(groupSize):
 
 
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for different group
-# sizes (= userNum). Specifically for group sizes = 5, 10 , 15, 20
+# sizes (= userNum). Specifically for group sizes = 5, 10, 15, 20
 class MyBigThread (threading.Thread):
     def __init__(self, threadID, userNum):
         threading.Thread.__init__(self)
@@ -209,7 +167,6 @@ def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, 
     simThreshold = 0.6
     while cond != 0:
         while True:
-            random.seed()
             tmp = random.randint(0, r.shape[0] - 1)
             if tmp not in divUsers:
                 if tmp not in simUsers:
@@ -327,9 +284,9 @@ if __name__ == '__main__':
     storeMatrices = not impMatrices
     spendTimeWaiting = SPEND_TIME_WAITING
     if impMatrices:
-        r = import_r()
-        itemsCost = import_items_cost()
-        usersBudget = import_users_budget()
+        r = import_excel_matrix("preferenceList")
+        itemsCost = import_excel_matrix("itemsCost")
+        usersBudget = import_excel_matrix("usersBudget")
     else:
         # Give the location of the file of the items
         itemsLoc = Path(__file__).parent / "Datasets/items.xls"
@@ -504,7 +461,6 @@ if __name__ == '__main__':
             print("Budget not enough")
             exit()
         # Choose a random item from the feasible items
-        random.seed()
         selectedItemIdx = random.randint(0, feasibleItems.shape[0]-1)
         selectedItem = feasibleItems[selectedItemIdx]
         payments = calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, True)
