@@ -1,13 +1,14 @@
 import random
-import pandas
 import numpy as np
-import threading
-import xlsxwriter
+
+
 import xlrd
 import corankco as crc
+from utils import *
 
-from pathlib import Path
 from numpy.linalg import inv
+
+import threading
 from multiprocessing import Process, Array
 
 # Control Sequence Variables############################################################################################
@@ -16,59 +17,6 @@ SPEND_TIME_WAITING = [True, False, False, False, False, False]
 EPSILON = 0.0001
 IMPORT_MATRICES = False
 KENDALL_TAU_GROUP_SIZE = 10
-
-# Functions for storing and retrieving Matrices used in the code below #################################################
-
-# Write into preferenceList.xlsx the preference list of the users for each item
-def store_r(r):
-    prefListWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/preferenceList.xlsx")
-    prefListWs = prefListWb.add_worksheet()
-
-    for j in range(0, r.shape[0]):
-        prefListWs.write_row(j + 1, 0, r[j])
-    prefListWb.close()
-
-
-# Write into itemsCost.xlsx the itemsCost Matrix
-def store_items_cost(itemsCost):
-    itemsCostWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/itemsCost.xlsx")
-    itemsCostWs = itemsCostWb.add_worksheet()
-
-    for j in range(0, itemsCost.shape[0]):
-        itemsCostWs.write_number(j + 1, 0, itemsCost[j])
-    itemsCostWb.close()
-
-
-# Write into usersBudget.xlsx the usersBudget matrix
-def store_users_budget(usersBudget):
-    usersBudgetWb = xlsxwriter.Workbook(Path(__file__).parent / "Datasets/usersBudget.xlsx")
-    usersBudgetWs = usersBudgetWb.add_worksheet()
-
-    for j in range(0, usersBudget.shape[0]):
-        usersBudgetWs.write_number(j + 1, 0, usersBudget[j])
-    usersBudgetWb.close()
-
-
-# Import the preference list matrix
-def import_r():
-    WS = pandas.read_excel(Path(__file__).parent / "Datasets/preferenceList.xlsx")
-    r = np.array(WS)
-    return r
-
-
-# Import the itemsCost Matrix
-def import_items_cost():
-    WS = pandas.read_excel(Path(__file__).parent / "Datasets/itemsCost.xlsx")
-    itemsCost = np.array(WS)
-    return itemsCost
-
-
-# Import the usersBudget matrix
-def import_users_budget():
-    WS = pandas.read_excel(Path(__file__).parent / "Datasets/usersBudget.xlsx")
-    usersBudget = np.array(WS)
-    return usersBudget
-
 
 # Helping Functions used for showing and generating data ###############################################################
 # Create a random group of groupSize users and return their index in prefList. usersSize is the max index possible
@@ -92,7 +40,7 @@ def calculate_avg_algo_score(preferedItems, prefList, groups, groupSize):
             itemScore[k] += prefList[groups[k][j]][preferedItems[k]]
         itemScore[k] = itemScore[k] / groupSize
     avgItemScore = np.sum(itemScore) / 100
-    print("For group size = ", groupSize, " average score is ", avgItemScore)
+    print(f"For group size = {groupSize} average score is {avgItemScore}")
 
 
 # Functions used for the Task's algorithms #############################################################################
@@ -591,4 +539,4 @@ if __name__ == '__main__':
                 tmpAvgSat[j] = final
                 # print("Fisibles: ", feasibleItems)
             groupsSat[k] = sum(tmpAvgSat)/100
-            print("For group size:", groupSizes[k], " average satisfaction is:", groupsSat[k])
+            print(f"For group size: {groupSizes[k]}, average satisfaction is:{groupsSat[k]}")
