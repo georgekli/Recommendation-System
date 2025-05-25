@@ -5,3 +5,4 @@ xlsxwriter
 corankco
 unittest2
 openpyxl
+python-calamine
