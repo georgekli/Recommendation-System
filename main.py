@@ -1,21 +1,21 @@
 import random
 import numpy as np
 from numpy.linalg import inv
+import time
 import threading
 from multiprocessing import Process, Array
-import time
 
 import xlrd
 import corankco as crc
 
 from definitions import *
-from package.utils import *
-from package.voting_algorithms import *
+from common.utils import *
+from common.voting_algorithms import *
 
 # Control Sequence Variables############################################################################################
 # Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
-EPSILON = 0.0001
-IMPORT_MATRICES = False
+
+IMPORT_MATRICES = True
 SPEND_TIME_WAITING = [True, False, False, False, False, False]
     
 random.seed(21)
@@ -23,43 +23,42 @@ random.seed(21)
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for different group
 # sizes (= userNum). Specifically for group sizes = 5, 10, 15, 20
 class MyBigThread (threading.Thread):
-    def __init__(self, threadID, userNum):
+    def __init__(self, thread_id, userNum):
         threading.Thread.__init__(self)
-        self.threadID = threadID
+        self.thread_id = thread_id
         self.userNum = userNum
 
     def run(self):
-        print("Starting ", self.threadID)
+        print(f"Starting {self.thread_id}")
         group_set_copeland(self.userNum)
-        print("Exiting ", self.threadID)
+        print(f"Exiting {self.thread_id}")
 
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for
 # group size = KENDALL_TAU_GROUP_SIZE
 class MyBigThread2 (threading.Thread):
-    def __init__(self, threadID, userNum, groups):
+    def __init__(self, thread_id, userNum, groups):
         threading.Thread.__init__(self)
-        self.threadID = threadID
+        self.thread_id = thread_id
         self.userNum = userNum
         self.groups = groups
 
     def run(self):
-        print("Starting ", self.threadID)
+        print("Starting ", self.thread_id)
         for i in range(0, 100):
             winner = copeland_method(self.groups[i], r)
             winnersArray[i] = winner
         calculate_avg_algo_score(winnersArray, r, groups, self.userNum)
-        print("Exiting ", self.threadID)
+        print("Exiting ", self.thread_id)
 
 # Function that spawn a process for each group to be created
 def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, pid):
-    cond = 1
-    simUsers = []
+    condition = True
+    simUsers, divUsers = [], []
     simUsers.append(firstUser)
-    divUsers = []
     divUsers.append(firstUser)
-    divThreshold = 0.6
-    simThreshold = 0.6
-    while cond != 0:
+    divThreshold = simThreshold = 0.6
+
+    while condition:
         while True:
             tmp = random.randint(0, r.shape[0] - 1)
             if tmp not in divUsers:
@@ -78,13 +77,16 @@ def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, 
         per = counter / ((r.shape[1] * (r.shape[1] - 1)) / 2)
         if (per < 1 - simThreshold) and (len(simUsers) < groupSize):
             simUsers.append(compareUser)
-        elif (per >= divThreshold) and (len(divUsers) < groupSize):
+
+        if (per >= divThreshold) and (len(divUsers) < groupSize):
             divUsers.append(compareUser)
-        elif (len(simUsers) == groupSize) and (len(divUsers) == groupSize):
+
+        if (len(simUsers) == groupSize) and (len(divUsers) == groupSize):
             print(pid)
             print("divUsers: ", divUsers)
             print("simUsers: ", simUsers)
-            cond = 0
+            condition = False
+
     for k in range(0, len(divUsers)):
         simGroup[k] = simUsers[k]
         divGroup[k] = divUsers[k]
@@ -154,15 +156,20 @@ if __name__ == '__main__':
     start1 = time.time()
     prefList = r
     sortedPref = np.zeros((r.shape[0], r.shape[1]), dtype=tuple)
-    for i in range(0, r.shape[0]):
-        for j in range(0, r.shape[1]):
+    for i in range(0, sortedPref.shape[0]):
+        for j in range(0, sortedPref.shape[1]):
             sortedPref[i][j] = (prefList[i][j], j)
     # Sort the list
     sortedPref = np.flip(np.sort(sortedPref), axis=1)
     end1 = time.time()
     print(end1 - start1)
-    
 
+    start1 = time.time()
+    preferences_sorted = list()
+    preferences_sorted = [[(prefList[i][j], j) for i in range(0, sortedPref.shape[0])] for j in range(0, sortedPref.shape[1])]
+    preferences_sorted.sort(reverse=True)
+    end1 = time.time()
+    print(end1 - start1)
     # Task 1############################################################################################################
     if spendTimeWaiting[0]:
         print_top_k(r, k=5)
