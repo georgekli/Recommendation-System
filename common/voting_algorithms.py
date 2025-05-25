@@ -1,10 +1,10 @@
 import numpy as np
-from package.utils import create_random_group, calculate_avg_algo_score
+from common.utils import create_random_group, calculate_average_score
 
 # Borda Count Algorithm for 100 groups in groupsIndexes returning 100 recommended items
-def borda_count(groupsIndexes, prefList):
-    preferedItems = [0] * 100
-    for i in range(0, 100):
+def borda_count(groupsIndexes, prefList, number_of_groups=100):
+    preferedItems = [0] * number_of_groups
+    for i in range(number_of_groups):
         groupIndexes = groupsIndexes[i]
         group = [[0] * prefList.shape[1]] * len(groupIndexes)
         # Make groups from matrix
@@ -13,9 +13,9 @@ def borda_count(groupsIndexes, prefList):
         # Initialize counters
         itemsRating = [0] * prefList.shape[1]
         # Count for every user prefered sequence
-        for users in range(0, len(groupIndexes)):
+        for users in range(len(groupIndexes)):
             user = group[users]
-            for items in range(0, prefList.shape[1]):
+            for items in range(prefList.shape[1]):
                 item = user[items][1]
                 # Borda count increment
                 itemsRating[item] = itemsRating[item] + (prefList.shape[1] - items)
@@ -25,32 +25,34 @@ def borda_count(groupsIndexes, prefList):
 # Copeland Method Algorithm for a group returning a recommended item
 def copeland_method(groupIndexes, prefList):
     # Create the copeland matrix
-    itemWins = [0]*prefList.shape[1]
-    itemA = 0
-    itemB = 1
-    while itemA < (prefList.shape[1] - 1) and itemB < (prefList.shape[1]):
+    item_wins = [0] * prefList.shape[1]
+    item_a, item_b = 0, 1
+
+    while item_a < (prefList.shape[1] - 1) and item_b < (prefList.shape[1]):
         roundWins = [0] * 2
         for i in range(0, len(groupIndexes)):
-            if prefList[groupIndexes[i]][itemA] > prefList[groupIndexes[i]][itemB]:
+            if prefList[groupIndexes[i]][item_a] > prefList[groupIndexes[i]][item_b]:
                 roundWins[0] += 1
-            elif prefList[groupIndexes[i]][itemA] == prefList[groupIndexes[i]][itemB]:
+            elif prefList[groupIndexes[i]][item_a] == prefList[groupIndexes[i]][item_b]:
                 pass
             else:
                 roundWins[1] += 1
 
         if roundWins[0] > roundWins[1]:
-            itemWins[itemA] += 1
-        elif roundWins[0] < roundWins[1]:
-            itemWins[itemB] += 1
+            item_wins[item_a] += 1
+        
+        if roundWins[0] < roundWins[1]:
+            item_wins[item_b] += 1
         else:
-            itemWins[itemA] += 0.5
-            itemWins[itemB] += 0.5
-        itemB += 1
-        if itemB == prefList.shape[1]-1:
-            itemA = itemA + 1
-            itemB = itemA + 1
+            item_wins[item_a] += 0.5
+            item_wins[item_b] += 0.5
 
-    return itemWins.index(max(itemWins))
+        item_b += 1
+        if item_b == prefList.shape[1]-1:
+            item_a = item_a + 1
+            item_b = item_a + 1
+
+    return item_wins.index(max(item_wins))
 
 # Function calling copeland_method() for 100 groups of groupSize and showing the results
 def group_set_copeland(groupSize):
@@ -62,11 +64,11 @@ def group_set_copeland(groupSize):
         groups[i] = create_random_group(groupSize, r.shape[0])
         winner = copeland_method(groups[i], r)
         winnersArray[i] = winner
-    calculate_avg_algo_score(winnersArray, r, groups, groupSize)
+    calculate_average_score(winnersArray, r, groups, groupSize)
 
 
 # Reweighed Approval Voting algorithm for a groups that returns k items
-def rav(groupIndexes, prefList, k, threshold):
+def reweighted_approval_voting(groupIndexes, prefList, k, threshold):
     # Create approval list for every user
     A = [[] for i in range(len(groupIndexes))]
     for i in range(0, len(groupIndexes)):
@@ -83,7 +85,7 @@ def rav(groupIndexes, prefList, k, threshold):
     # Recommend k Items
     for kIters in range(0, k):
         # Item votes
-        weightedItemVotes = [0]*prefList.shape[1]
+        weightedItemVotes = [0] * prefList.shape[1]
         # For all users in the group
         for i in range(0, len(groupIndexes)):
             # Get for the i user. Its preference list

@@ -10,28 +10,27 @@ random.seed(21)
 
 ################## Functions for storing and retrieving Matrices used in the code below ################################
 
-""" Import an excel matrix with name equal to name
+""" Import an excel matrix with name equal to name. Calamine is faster than default
 :param filename: The file of the matrix
 :returns: Imported matrix
 :rtype: np.array
 """
 def import_excel_matrix(filename):
-    worksheet = pd.read_excel(filename)
-    return np.array(worksheet)
+    return np.array(pd.read_excel(filename, engine="calamine"))
 
 """ Store a matrix in an excel sheet
 :param matrix: The matrix to be stored
 :param filename: Where to store the matrix
 """
 def store_excel_matrix(matrix, filename):
-    matrixWb = xlsxwriter.Workbook(f"{DATASET_DIR}/{filename}")
-    matrixWs = matrixWb.add_worksheet()
+    workbook = xlsxwriter.Workbook(f"{DATASET_DIR}/{filename}")
+    worksheet = workbook.add_worksheet()
     try:
         for j in range(0, matrix.shape[0]):
-            matrixWs.write_row(j + 1, 0, matrix[j])
+            worksheet.write_row(j + 1, 0, matrix[j])
     except:
         for j in range(0, matrix.shape[0]):
-            matrixWs.write_number(j + 1, 0, matrix[j])
+            worksheet.write_number(j + 1, 0, matrix[j])
 
 # Helping Functions used for showing and generating data ###############################################################
 """ Create a random group of users
@@ -42,16 +41,17 @@ def store_excel_matrix(matrix, filename):
 def create_random_group(groupSize, usersSize):
     return random.sample(range(0, usersSize), groupSize)
 
-# Calculate and show the average score of an algorithm that suggests an item(1) by calculating the average rating of the
-# item by users in each group (used for 100 groups)
-def calculate_avg_algo_score(preferedItems, prefList, groups, groupSize):
-    itemScore = [0] * 100
-    for k in range(0, 100):
+# Calculate and show the average score of an algorithm that suggests an 
+# item(1) by calculating the average rating of the item by users in each 
+# group (used for 100 groups)
+def calculate_average_score(preferedItems, prefList, groups, groupSize, number_of_groups=100):
+    item_score = [0] * number_of_groups
+    for k in range(number_of_groups):
         for j in range(0, groupSize):
-            itemScore[k] += prefList[groups[k][j]][preferedItems[k]]
-        itemScore[k] = itemScore[k] / groupSize
-    avgItemScore = np.sum(itemScore) / 100
-    print(f"For group size = {groupSize} average score is {avgItemScore}")
+            item_score[k] += prefList[groups[k][j]][preferedItems[k]]
+        item_score[k] = item_score[k] / groupSize
+    item_score_avg = np.sum(item_score) / number_of_groups
+    print(f"Average score : {item_score_avg} | Group size : {groupSize} ")
 
 
 # Functions used for the Task's algorithms #############################################################################
@@ -84,25 +84,22 @@ def items_feasible(group, items, users):
 
 # Function that calculates and shows the payment vector (showing only if boolean var show is True) for a group that
 # gets an item (=selectedItem)
-def calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, show):
+def calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, show=True):
     # Cost Distribution Mechanism
-    i = 0
     # Initialize the user satisfaction
     userSatisfaction = [0]*len(group)
     # For every user in the group
-    for userId in group:
+    for i, userId in enumerate(group):
         # User satisfaction comes from relevance metric
         userSatisfaction[i] = prefList[userId, selectedItem]
-        i += 1
     # Calculate the overall similarity of the user satisfaction
     overallSimilarity = sum(userSatisfaction)
     # Initialize the user payments
     userpayments = [0]*len(group)
     richUsers = []
     sharedCost = 0
-    i = 0
     # Calculate payment for each user
-    for userId in group:
+    for i, userId in enumerate(group):
         # Calculate how much each user pays based on its preference, satisfaction
         userpayments[i] = (userSatisfaction[i]/overallSimilarity)*itemsCost[selectedItem]
         richUsers.append([userId, i])
@@ -112,7 +109,6 @@ def calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, sh
             userpayments[i] = usersBudget[userId]
             # Exclude poor user for future distribution
             richUsers.pop()
-        i += 1
     # Well now the rich should pay for the poor recursively (ancient Athens theatre)
     while sharedCost != 0:
         newSharedCost = 0
@@ -134,16 +130,15 @@ def calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, sh
         richUsers = newRichUsers
     if show:
         for i in range(0, len(group)):
-            print("User:", group[i], " pays:", userpayments[i], "for similarity", userSatisfaction[i], " with budget",
-                  usersBudget[group[i]])
-        print("Cost of movie:", itemsCost[selectedItem])
+            print(f"User: {group[i]}, pays: {userpayments[i]}, for similarity {userSatisfaction[i]} with budget {usersBudget[group[i]]}")
+        print(f"Movie Cost: {itemsCost[selectedItem]}")
         if sum(userpayments)-itemsCost[selectedItem] > 1e-10:
-            print("Failed Distribution Test with", sum(userpayments)-itemsCost[selectedItem], "$ Difference")
+            print(f"Failed Distribution Test with {sum(userpayments)-itemsCost[selectedItem]} $ Difference")
     return userpayments
 
 
 # Function that calculates the satisfaction of a user when itemId is purchased by the group
-def calculate_sat(prefList, userBudget, userId, itemId, payment, a=8, b=2):
+def calculate_satisfaction(prefList, userBudget, userId, itemId, payment, a=8, b=2):
     first_part = a ** ((-(max(prefList[userId])) - prefList[userId][itemId]) / max(prefList[userId]))
     second_part = b ** ((userBudget-payment)/userBudget)
     return first_part * second_part

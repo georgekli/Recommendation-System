@@ -12,11 +12,16 @@ from definitions import *
 from common.utils import *
 from common.voting_algorithms import *
 
-# Control Sequence Variables############################################################################################
-# Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
+'''These are for code profiling to make it faster'''
+import pstats
+import cProfile
 
-IMPORT_MATRICES = True
-SPEND_TIME_WAITING = [True, False, False, False, False, False]
+'''Control Sequence variables'''
+# Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
+TOTAL_GROUPS = 100
+IMPORT_MATRICES = False
+STORE_MATRICES = False
+SPEND_TIME_WAITING = [True, True, True, True, True, True]
     
 random.seed(21)
 
@@ -44,10 +49,10 @@ class MyBigThread2 (threading.Thread):
 
     def run(self):
         print("Starting ", self.thread_id)
-        for i in range(0, 100):
+        for i in range(TOTAL_GROUPS):
             winner = copeland_method(self.groups[i], r)
             winnersArray[i] = winner
-        calculate_avg_algo_score(winnersArray, r, groups, self.userNum)
+        calculate_average_score(winnersArray, r, groups, self.userNum)
         print("Exiting ", self.thread_id)
 
 # Function that spawn a process for each group to be created
@@ -83,18 +88,16 @@ def group_them(firstUserPrefernce, firstUser, r, simGroup, divGroup, groupSize, 
 
         if (len(simUsers) == groupSize) and (len(divUsers) == groupSize):
             print(pid)
-            print("divUsers: ", divUsers)
-            print("simUsers: ", simUsers)
+            print("Divergent Users: ", divUsers)
+            print("Similar Users: ", simUsers)
             condition = False
 
     for k in range(0, len(divUsers)):
         simGroup[k] = simUsers[k]
         divGroup[k] = divUsers[k]
 
-# Main code for running Tasks in the assignment ########################################################################
-if __name__ == '__main__':
-    # Control Sequence Variables 
-    storeMatrices = not IMPORT_MATRICES
+    
+def main():# Control Sequence Variables 
     spendTimeWaiting = SPEND_TIME_WAITING
     if IMPORT_MATRICES:
         r = import_excel_matrix(f"{DATASET_DIR}/preferenceList.xlsx")
@@ -102,11 +105,11 @@ if __name__ == '__main__':
         usersBudget = import_excel_matrix(f"{DATASET_DIR}/usersBudget.xlsx")
     else:
         # Open Workbook for the users
-        usersWb = xlrd.open_workbook(f"{DATASET_DIR}/items.xls")
+        usersWb = xlrd.open_workbook(f"{DATASET_DIR}/users.xls")
         usersSheet = usersWb.sheet_by_index(0)
 
         # To open Workbook for the items
-        itemsWb = xlrd.open_workbook(f"{DATASET_DIR}/users.xls")
+        itemsWb = xlrd.open_workbook(f"{DATASET_DIR}/items.xls")
         itemsSheet = itemsWb.sheet_by_index(0)
         # Define the dimensions of the features
         D = 8
@@ -147,13 +150,12 @@ if __name__ == '__main__':
                 if i == 1:
                     usersBudget[u - 1] = usersSheet.cell_value(u, 10)
         # Store matrices?
-        if storeMatrices:
+        if STORE_MATRICES:
             store_excel_matrix(r, f"{DATASET_DIR}/preferenceList.xlsx")
             store_excel_matrix(itemsCost, f"{DATASET_DIR}/itemsCost.xlsx")
             store_excel_matrix(usersBudget, f"{DATASET_DIR}/usersBudget.xlsx")
     
     # Initialize the sorted Preference list
-    start1 = time.time()
     prefList = r
     sortedPref = np.zeros((r.shape[0], r.shape[1]), dtype=tuple)
     for i in range(0, sortedPref.shape[0]):
@@ -161,114 +163,107 @@ if __name__ == '__main__':
             sortedPref[i][j] = (prefList[i][j], j)
     # Sort the list
     sortedPref = np.flip(np.sort(sortedPref), axis=1)
-    end1 = time.time()
-    print(end1 - start1)
 
-    start1 = time.time()
-    preferences_sorted = list()
-    preferences_sorted = [[(prefList[i][j], j) for i in range(0, sortedPref.shape[0])] for j in range(0, sortedPref.shape[1])]
-    preferences_sorted.sort(reverse=True)
-    end1 = time.time()
-    print(end1 - start1)
-    # Task 1############################################################################################################
+    # Task 1
     if spendTimeWaiting[0]:
         print_top_k(r, k=5)
-    # Task 2a###########################################################################################################
+    # Task 2a 
     if spendTimeWaiting[1]:
         groupSizes = [5, 10, 15, 20]
         # Create Random Groups and execute Borda count
-        preferedItems = [[0] * 100] * len(groupSizes)
+        preferedItems = [[0] * TOTAL_GROUPS] * len(groupSizes)
         # Iterate through different sets of groups
         for i in range(0, len(groupSizes)):
-            groups = [[0] * groupSizes[i]] * 100
+            groups = [[0] * groupSizes[i]] * TOTAL_GROUPS
             # Iterate through groups
-            for numOfGroups in range(0, 100):
+            for numOfGroups in range(TOTAL_GROUPS):
                 groups[numOfGroups] = (create_random_group(groupSizes[i], r.shape[0]))
             # Run Borda Algo
             preferedItems[i] = borda_count(groups, sortedPref)
             # Calculate average score
             print("Borda Count Results:")
-            calculate_avg_algo_score(preferedItems[i], prefList, groups, groupSizes[i])
-        winnersArray = [[0] * 100] * 4
+            calculate_average_score(preferedItems[i], prefList, groups, groupSizes[i], TOTAL_GROUPS)
+        winnersArray = [[0] * TOTAL_GROUPS] * 4
         # Execute copeland method
         print("Copeland Method Results:")
-        thread1 = MyBigThread(1, 5)
-        thread2 = MyBigThread(2, 10)
-        thread3 = MyBigThread(3, 15)
-        thread4 = MyBigThread(4, 20)
-        winnersArray[0] = thread1.start()
-        winnersArray[1] = thread2.start()
-        winnersArray[2] = thread3.start()
-        winnersArray[3] = thread4.start()
-    # Task 2b###########################################################################################################
+        threads = list()
+        for i, group_size in enumerate(groupSizes):
+            threads.append(MyBigThread(i, group_size))
+
+        for i, thread in enumerate(threads):
+            winnersArray[i] = thread.start()
+
+    # Task 2b############
     if spendTimeWaiting[2]:
-        k = 10
-        threshold = 6
+        threshold, k = 6, 10
         groupSizes = [5, 10, 15, 20]
+
         # S = [[[] for i in range(0, k)]*100]*len(groupSizes)
         for sizes in range(0, len(groupSizes)):
-            S = [[-1]*k]*100
-            groups = [0]*100
-            for i in range(0, 100):
+            S = [[-1]*k] * TOTAL_GROUPS
+            groups = [0] * TOTAL_GROUPS
+            for i in range(TOTAL_GROUPS):
                 groups[i] = create_random_group(groupSizes[sizes], prefList.shape[0])
-                S[i] = rav(groups[i], prefList, k, threshold)
-                print("For group size:", groupSizes[sizes], " recommended items are ", S[i])
-        print("\nFor example for the last group of group size 20 recommended items are", S[99])
-    # Task 3############################################################################################################
+                S[i] = reweighted_approval_voting(groups[i], prefList, k, threshold)
+                print(f"For group size: {groupSizes[sizes]} recommended items are {S[i]}")
+        print(f"\nFor example for the last group of group size 20 recommended items are {S[99]}")
+    # Task 3###########
     if spendTimeWaiting[3]:
         # Define the number of items to recommend
         groupSize = KENDALL_TAU_GROUP_SIZE
         groupSizes = [groupSize]
         # Get the users size from the excel
         userSize = r.shape[0]
-        numberOfGroups = 100
-        groups = [[[0 for k in range(0, groupSize)] for j in range(0, 2)] for i in range(0, numberOfGroups)]
+
+        groups = [[[0 for k in range(groupSize)] for j in range(0, 2)] for i in range(TOTAL_GROUPS)]
         p = []
-        simGroup = [0] * numberOfGroups
-        divGroup = [0] * numberOfGroups
-        for groupsIdx in range(0, numberOfGroups):
+        simGroup = [0] * TOTAL_GROUPS
+        divGroup = [0] * TOTAL_GROUPS
+        for groupsIdx in range(TOTAL_GROUPS):
             # Index of the first user.(Random)
             firstUser = random.randint(0, userSize - 1)
             firstUserPrefernce = r[firstUser]
-            simGroup[groupsIdx] = Array('i', range(0, groupSize))
-            divGroup[groupsIdx] = Array('i', range(0, groupSize))
+            simGroup[groupsIdx] = Array('i', range(groupSize))
+            divGroup[groupsIdx] = Array('i', range(groupSize))
             p.append(Process(target=group_them, args=(firstUserPrefernce, firstUser, r, simGroup[groupsIdx],
                                                       divGroup[groupsIdx], groupSize, groupsIdx,)))
             p[groupsIdx].start()
         for pr in p:
             pr.join()
-        newDivGroups = [[0]*KENDALL_TAU_GROUP_SIZE]*numberOfGroups
-        newSimGroups = [[0]*KENDALL_TAU_GROUP_SIZE]*numberOfGroups
-        for s in range(0, numberOfGroups):
+        newDivGroups = [[0] * KENDALL_TAU_GROUP_SIZE] * TOTAL_GROUPS
+        newSimGroups = [[0] * KENDALL_TAU_GROUP_SIZE] * TOTAL_GROUPS
+        for s in range(TOTAL_GROUPS):
             newSimGroups[s] = simGroup[s][:]
             newDivGroups[s] = divGroup[s][:]
-        simPreferedItems = [[0] * 100] * len(groupSizes)
-        divPreferedItems = [[0] * 100] * len(groupSizes)
+        simPreferedItems = [[0] * TOTAL_GROUPS] * len(groupSizes)
+        divPreferedItems = [[0] * TOTAL_GROUPS] * len(groupSizes)
+
         print("Borda Count Results:")
         # Iterate through different sets of groups
-        for i in range(0, len(groupSizes)):
-            # Iterate through groups
+        for i in range(len(groupSizes)):
             # Run Borda Algo
             simPreferedItems[i] = borda_count(newSimGroups, sortedPref)
             divPreferedItems[i] = borda_count(newDivGroups, sortedPref)
             # Calculate average score
-            print("Borda Count Results for similar groups:")
-            calculate_avg_algo_score(simPreferedItems[i], prefList, newSimGroups, groupSizes[i])
-            print("Borda Count Results for divergent groups:")
-            calculate_avg_algo_score(divPreferedItems[i], prefList, newDivGroups, groupSizes[i])
-        winnersArray = [0] * 100
+            print("Borda Outcome (Similar groups):")
+            calculate_average_score(simPreferedItems[i], prefList, newSimGroups, groupSizes[i])
+            print("Borda Outcome (Divergent groups):")
+            calculate_average_score(divPreferedItems[i], prefList, newDivGroups, groupSizes[i])
+
+        winnersArray = [0] * TOTAL_GROUPS
         # Execute copeland method
-        print("Copeland Method Results for similar users:")
-        for i in range(0, 100):
+        print("Copeland Outcome (Similar users): ")
+        for i in range(TOTAL_GROUPS):
             winner = copeland_method(newSimGroups[i], r)
             winnersArray[i] = winner
-        calculate_avg_algo_score(winnersArray, r, newSimGroups, KENDALL_TAU_GROUP_SIZE)
-        print("Copeland Method Results for divergent users:")
-        for i in range(0, 100):
+        calculate_average_score(winnersArray, r, newSimGroups, KENDALL_TAU_GROUP_SIZE)
+
+        print("Copeland Outcome (Divergent users): ")
+        for i in range(TOTAL_GROUPS):
             winner = copeland_method(newDivGroups[i], r)
             winnersArray[i] = winner
-        calculate_avg_algo_score(winnersArray, r, newDivGroups, KENDALL_TAU_GROUP_SIZE)
-    # Task 4############################################################################################################
+        calculate_average_score(winnersArray, r, newDivGroups, KENDALL_TAU_GROUP_SIZE)
+    # Task 4#######
     # Provide user's budgets with user ID
     if spendTimeWaiting[4]:
         groupSize = 7
@@ -278,18 +273,25 @@ if __name__ == '__main__':
         feasibleItems = items_feasible(group, itemsCost, usersBudget)
         if len(feasibleItems) == 0:
             print("Budget not enough")
+            print("Exiting .")
+            time.sleep(1)
+            print("Exiting ..")
+            time.sleep(1)
+            print("Exiting ...")
+            time.sleep(1)
             exit()
         # Choose a random item from the feasible items
         selectedItemIdx = random.randint(0, feasibleItems.shape[0]-1)
         selectedItem = feasibleItems[selectedItemIdx]
         payments = calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, True)
-    # Task 5############################################################################################################
+
+    # Task 5######
     if spendTimeWaiting[5]:
         groupSizes = [4, 6, 8, 10, 12]
-        groupsSat = [0]*len(groupSizes)
+        group_satisfaction = [0] * len(groupSizes)
         for k in range(0, len(groupSizes)):
-            tmpAvgSat = [0]*100
-            for j in range(0, 100):
+            tmpAvgSat = [0] * TOTAL_GROUPS
+            for j in range(TOTAL_GROUPS):
                 groupSize = groupSizes[k]
                 final = 0
                 satItem = 0
@@ -301,17 +303,23 @@ if __name__ == '__main__':
                     feasibleItems = items_feasible(group, itemsCost, usersBudget)
                 for selectedItem in feasibleItems:
                     payments = calculate_payments(group, selectedItem, prefList, itemsCost, usersBudget, False)
-                    totalSAT = 0
-                    i = 0
-                    for userId in group:
-                        totalSAT += calculate_sat(prefList, usersBudget[userId], userId, selectedItem, payments[i])
-                        i += 1
-                    if final < totalSAT:
-                        final = totalSAT
+                    total_satisfaction = 0
+                    for i, userId in enumerate(group):
+                        total_satisfaction += calculate_satisfaction(prefList, usersBudget[userId], userId, selectedItem, payments[i])
+
+                    if final < total_satisfaction:
+                        final = total_satisfaction
                         satItem = selectedItem
                 # print("Item: ", satItem)
                 # print("SAT: ", final)
                 tmpAvgSat[j] = final
                 # print("Fisibles: ", feasibleItems)
-            groupsSat[k] = sum(tmpAvgSat)/100
-            print(f"For group size: {groupSizes[k]}, average satisfaction is:{groupsSat[k]}")
+            group_satisfaction[k] = sum(tmpAvgSat)/ TOTAL_GROUPS
+            print(f"For group size: {groupSizes[k]}, average satisfaction is:{group_satisfaction[k]}")
+
+# Main code for running Tasks in the assignment 
+if __name__ == '__main__':
+    cProfile.run('main()', "main_statistics")
+
+    p = pstats.Stats("main_statistics")
+    p.sort_stats("cumulative").reverse_order().print_stats()
