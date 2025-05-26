@@ -6,7 +6,7 @@ import threading
 from multiprocessing import Process, Array
 
 import xlrd
-import corankco as crc
+from corankco import BordaCount, Dataset, ScoringScheme
 
 from definitions import *
 from common.utils import *
@@ -18,12 +18,15 @@ import cProfile
 
 '''Control Sequence variables'''
 # Array correspond to Tasks [ Task1, Task2a, Task2b, Task3, Task4, Task5]
+# Create a BordaCount aggregator
+scoring_scheme = ScoringScheme([[0., 1., 1., 0., 1., 0.], [1., 1., 0., 1., 1., 0.]])
+
 TOTAL_GROUPS = 100
-IMPORT_MATRICES = False
+IMPORT_MATRICES = True
 STORE_MATRICES = False
-SPEND_TIME_WAITING = [True, True, True, True, True, True]
+SPEND_TIME_WAITING = [False, True, True, False, False, False]
     
-random.seed(21)
+random.seed(212)
 
 # Function that spawns threads calculating copeland_method (through group_set_copeland) for different group
 # sizes (= userNum). Specifically for group sizes = 5, 10, 15, 20
@@ -115,11 +118,10 @@ def main():# Control Sequence Variables
         D = 8
         rmax = 10
         # Create the Variance matrices of the users and the items
-        itemsSigma = np.identity(D)
-        usersSigma = 2 * np.identity(D)
+        itemsSigma, usersSigma = np.identity(D),  2 * np.identity(D)
         # Create the inverse of the Variance matrices of the users and the items
-        itemsSigmaInv = inv(itemsSigma)
-        usersSigmaInv = inv(usersSigma)
+        itemsSigmaInv, usersSigmaInv = inv(itemsSigma), inv(usersSigma)
+
         # Initialize the array that the preference list will be stored
         r = np.zeros((usersSheet.nrows - 1, itemsSheet.nrows - 1), dtype=float)
         # Initialize array dor itemsCost
@@ -170,22 +172,34 @@ def main():# Control Sequence Variables
     # Task 2a 
     if spendTimeWaiting[1]:
         groupSizes = [5, 10, 15, 20]
+        borda = BordaCount()
         # Create Random Groups and execute Borda count
-        preferedItems = [[0] * TOTAL_GROUPS] * len(groupSizes)
+        prefered_items = list()
         # Iterate through different sets of groups
-        for i in range(0, len(groupSizes)):
-            groups = [[0] * groupSizes[i]] * TOTAL_GROUPS
+        for group_size in groupSizes:
+            groups = [[0] * group_size] * TOTAL_GROUPS
             # Iterate through groups
             for numOfGroups in range(TOTAL_GROUPS):
-                groups[numOfGroups] = (create_random_group(groupSizes[i], r.shape[0]))
+                groups[numOfGroups] = (create_random_group(group_size, r.shape[0]))
             # Run Borda Algo
-            preferedItems[i] = borda_count(groups, sortedPref)
+
+            #preferedItems[i] = borda_count(groups, sortedPref)
+
+            for i, group in enumerate(groups):
+                dataset_preferences = list()
+                for member in group:
+                    dataset_preferences.append([f"{x[1]}" for x in sortedPref[member]])
+
+                dataset = Dataset(dataset_preferences)
+
+                prefered_items.append(borda.compute_consensus_rankings(dataset, scoring_scheme))
             # Calculate average score
             print("Borda Count Results:")
-            calculate_average_score(preferedItems[i], prefList, groups, groupSizes[i], TOTAL_GROUPS)
+            calculate_average_score(prefered_items, prefList, groups, group_size, TOTAL_GROUPS)
         winnersArray = [[0] * TOTAL_GROUPS] * 4
         # Execute copeland method
         print("Copeland Method Results:")
+        
         threads = list()
         for i, group_size in enumerate(groupSizes):
             threads.append(MyBigThread(i, group_size))
@@ -199,14 +213,15 @@ def main():# Control Sequence Variables
         groupSizes = [5, 10, 15, 20]
 
         # S = [[[] for i in range(0, k)]*100]*len(groupSizes)
-        for sizes in range(0, len(groupSizes)):
+        for i, group_size in enumerate(groupSizes):
             S = [[-1]*k] * TOTAL_GROUPS
             groups = [0] * TOTAL_GROUPS
             for i in range(TOTAL_GROUPS):
-                groups[i] = create_random_group(groupSizes[sizes], prefList.shape[0])
+                groups[i] = create_random_group(group_size, prefList.shape[0])
                 S[i] = reweighted_approval_voting(groups[i], prefList, k, threshold)
-                print(f"For group size: {groupSizes[sizes]} recommended items are {S[i]}")
+                print(f"For group size: {group_size} recommended items are {S[i]}")
         print(f"\nFor example for the last group of group size 20 recommended items are {S[99]}")
+
     # Task 3###########
     if spendTimeWaiting[3]:
         # Define the number of items to recommend
