@@ -55,20 +55,14 @@ def calculate_average_score(preferedItems, prefList, groups, groupSize, number_o
 
 
 # Functions used for the Task's algorithms #############################################################################
-# Print top k items for the first 50 users
 def print_top_k(r, k=10):
-    sortedItemsIndexes = np.zeros(r.shape[1])
-    top_k_items = np.zeros((r.shape[0], k))
-    top_k_indexes = np.zeros((r.shape[0], k))
-    print(f"Top {k} items for every user(descending)")
-    for users in range(0, 50):
-        # Take indexes of sorted items
-        sortedItemsIndexes = np.argsort(r[users])
-        top_k_indexes[users] = np.take(sortedItemsIndexes, range(r.shape[1] - k, r.shape[1]))
-        # Take top 10 indexes and make them items
-        top_k_items[users] = np.take(r[users], np.take(sortedItemsIndexes, range(r.shape[1] - k, r.shape[1])))
-        print("User: ", users, np.flip(top_k_indexes[users]))
-
+    """Print top-k items for the first 50 users."""
+    print(f"Top {k} items for every user (descending)")
+    print(f"User | Top {k} favourite items")
+    
+    for user in range(min(50, r.shape[0])):  # handle cases with < 50 users
+        top_k_idx = np.argsort(r[user])[-k:][::-1]   # get top-k indices in descending order
+        print(f"{user:>4} | {top_k_idx}")
 
 # Function that returns the items that the users of group can acquire with their budget
 def items_feasible(group, items, users):
